@@ -9990,6 +9990,243 @@ ALTER FUNCTION relatoriospersonalizados.func_rp_estoque_movimentacao_produtos (p
 
 --------------------------------------------------------------------------------------------------------------------------------------------
 
+-- TIRAR ENTER SQL
+translate(os.observacoes, E'[\r\n]+', ' ')
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+
+-- PROCURA CONTEÚDO EM FUNÇÕES
+create temporary table funcoes as
+  select n.nspname as schema_name,
+         p.proname as function_name,
+         pg_get_functiondef(p.oid) AS func_def,
+         pg_get_function_arguments(p.oid) AS args,
+         pg_get_function_result(p.oid) AS result
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname in ('public','idhcp','radius','syslog','provisionamento','temporarias','centralassinante','central','dpds','gerencial','integracao','ipay',
+    'ipay_imanager','migracao','mobile','mysql','procedimentosbancarios','regrasoperacao','simulafaturamento','tmp_ins','totvs')    
+  order by n.nspname, p.proname;
+
+select f.*
+from funcoes f
+where f.func_def iLike '%rFatura.numero%'
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+
+-- Assinatura qe não permite editar verificar o que falta
+select * from interfocusprospect.assinaturapacoteterceiros a 
+where a.assinatura = 99181         --tab preco 1251-- 99181-- 
+ 
+select * from interfocusprospect.vis_pacotetabela p where p.vis_id_tabela_preco = 1251
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+
+CREATE VIEW relatoriospersonalizados.vis_geral_historicos_gerais_v3 (
+    contrato,
+    cidade,
+    codigoassi,
+    nome,
+    cpf_cnpj,
+    tipo_historico,
+    protocolo,
+    historico_pai,
+    atendente,
+    grupo_atendente,
+    data_cadastro,
+    hora_cadastro,
+    data_fechamento,
+    hora_fechamento,
+    tempo_atendimento,
+    grupo,
+    contato,
+    assunto,
+    telefone,
+    situacaocontrato,
+    status,
+    razao_social,
+    carteira,
+    id_contrato,
+    situacaoassunto)
+AS
+ WITH s AS (
+SELECT hg_1.id,
+                CASE
+                    WHEN hg_1.d_datafechamento IS NOT NULL THEN 1
+                    WHEN hg_1.d_datafechamento IS NULL AND hpai_1.d_datafechamento IS NOT NULL THEN 1
+                    ELSE 2
+                END AS status
+FROM historicogeral hg_1
+             LEFT JOIN historicogeral hpai_1 ON hpai_1.controle = hg_1.historicopai
+        )
+    SELECT DISTINCT ct.contrato,
+    ci.nomedacidade AS cidade,
+    cli.codigocliente AS codigoassi,
+    cli.nome,
+    cli.cpf_cnpj,
+        CASE
+            WHEN hg.historicopai IS NULL THEN 'Principal'::text
+            ELSE 'Andamento'::text
+        END AS tipo_historico,
+    hg.controle AS protocolo,
+    hg.historicopai AS historico_pai,
+    hg.atendente,
+    hga.namegroup AS grupo_atendente,
+    hg.d_datacadastro AS data_cadastro,
+    hg.t_horacadastro AS hora_cadastro,
+    hg.d_datafechamento AS data_fechamento,
+    hg.t_horafechamento AS hora_fechamento,
+        CASE
+            WHEN hg.d_datafechamento IS NOT NULL THEN (((hg.d_datafechamento || ' '::text) || hg.t_horafechamento)::timestamp without time zone) -
+                (((hg.d_data || ' '::text) || hg.t_hora)::timestamp without time zone)
+            WHEN hg.d_datafechamento IS NULL AND hpai.d_datafechamento IS NOT NULL THEN (((hpai.d_datafechamento || ' '::text) ||
+                hpai.t_horafechamento)::timestamp without time zone) - (((hpai.d_data || ' '::text) || hpai.t_hora)::timestamp without time zone)
+            ELSE NULL::interval
+        END AS tempo_atendimento,
+    translate(g.descricao::text, '.-;:,'::text, ','::text) AS grupo,
+    translate(hg.descricao, E'[\r\n]+;:,', ' ') AS contato,
+    translate(a.descricao::text, '.-:;,'::text, ','::text) AS assunto,
+    func_retornatelefones(ct.cidade, ct.codigodocliente) AS telefone,
+    v.descricaosituacao AS situacaocontrato,
+        CASE
+            WHEN s.status = 1 THEN 'fechado'::text
+            ELSE 'aberto'::text
+        END AS status,
+    e.razaosocial AS razao_social,
+    ca.descricao AS carteira,
+    ct.id AS id_contrato,
+    t.descricao AS situacaoassunto
+    FROM historicogeral hg
+     JOIN contratos ct ON ct.cidade = hg.codigocidade AND ct.codempresa = hg.codempresa AND ct.contrato = hg.codcontrato
+     JOIN clientes cli ON cli.cidade = ct.cidade AND cli.codigocliente = ct.codigodocliente
+     JOIN cidade ci ON ci.codigodacidade = ct.cidade
+     JOIN empresas e ON e.codcidade = ct.cidade AND e.codempresa = ct.codempresa
+     LEFT JOIN historicogeral hpai ON hpai.controle = hg.historicopai
+     JOIN assuntohistorico a ON a.codigogrupo = hg.grupoassunto AND a.codigoassunto = hg.assunto
+     JOIN grupohistorico g ON g.codigo = hg.grupoassunto
+     LEFT JOIN usuariosdohistorico u ON u.controlehistorico = hg.controle
+     LEFT JOIN hwusers hu ON lower(hu.login::text) = lower(u.usuario::text)
+     LEFT JOIN hwgroups hgr ON hgr.id = hu.groupid
+     LEFT JOIN hwusers hua ON lower(hua.login::text) = lower(hg.atendente::text)
+     LEFT JOIN hwgroups hga ON hga.id = hua.groupid
+     LEFT JOIN tiposituacaohistorico t ON t.codigo = hg.codigotiposituacao
+     JOIN vis_situacaocontrato_descricao v ON v.situacao = ct.situacao
+     JOIN carteira ca ON ca.codigo = ct.codcarteira
+     JOIN s ON s.id = hg.id;
+
+ALTER VIEW relatoriospersonalizados.vis_geral_historicos_gerais_v3
+  OWNER TO postgres;
+
+
+--
+
+CREATE OR REPLACE FUNCTION relatoriospersonalizados.func_rp_grl_historicos_gerais_v3 (
+  pdatainicial date,
+  pdatafinal date,
+  phistorico text
+)
+RETURNS TABLE (
+  "STATUS" text,
+  "TIPO_HISTORICO" text,
+  "HISTORICO_PAI" integer,
+  "ASSUNTO" varchar,
+  "CARTEIRA" varchar,
+  "DATA_CADASTRO" date,
+  "HORA_CADASTRO" time,
+  "CPF/CNPJ" varchar,
+  "NOME" varchar,
+  "CONTRATO" integer,
+  "ID_CONTRATO" integer,
+  "PROTOCOLO" text,
+  "ATENDENTE" varchar,
+  "GRUPO" varchar,
+  "CONTATO" varchar,
+  "DATA_FECHAMENTO" date,
+  "HORA_FECHAMENTO" time,
+  "TEMPO_ATENDIMENTO" time,
+  "CIDADE" varchar,
+  "TELEFONE" text,
+  "SITUAÇÃO_CONTRATO" text,
+  "SITUAÇÃO_ASSUNTO" varchar,
+  "CÓDIGO_ASSI" integer,
+  "RAZAO_SOCIAL" varchar
+) AS
+$body$
+      BEGIN
+    	Create temporary table temp_rp_grl_historicos_gerais_v3(
+           "STATUS" text,
+            "TIPO_HISTORICO" text,
+            "HISTORICO_PAI" integer,
+            "ASSUNTO" varchar(100),
+            "CARTEIRA" varchar(100),
+            "DATA_CADASTRO" date,
+            "HORA_CADASTRO" time,
+            "CPF/CNPJ" varchar(18),
+            "NOME" varchar (40),
+            "CONTRATO" integer,
+            "ID_CONTRATO" integer,
+            "PROTOCOLO" text,
+            "ATENDENTE" varchar(20),            
+            "GRUPO" varchar(30),
+            "CONTATO" varchar(23000),
+            "DATA_FECHAMENTO" date,
+            "HORA_FECHAMENTO" time,
+            "TEMPO_ATENDIMENTO" time,
+            "CIDADE" varchar(30),
+            "TELEFONE" text,
+            "SITUAÇÃO_CONTRATO" text,
+            "SITUAÇÃO_ASSUNTO" varchar(100),
+            "CÓDIGO_ASSI" integer,
+            "RAZAO_SOCIAL" varchar(100)
+		) On commit drop;
+       
+      		phistorico := lower(to_ascii(phistorico::text)) || '%';
+      
+        insert into temp_rp_grl_historicos_gerais_v3
+        	select hg.status,
+            hg.tipo_historico,
+            hg.historico_pai,
+            hg.assunto,
+            hg.carteira,
+            hg.data_cadastro,
+            hg.hora_cadastro,
+            hg.cpf_cnpj,
+            hg.nome,
+            hg.contrato,
+            hg.id_contrato,
+            hg.protocolo,
+            hg.atendente,
+            hg.grupo,
+            hg.contato,
+            hg.data_fechamento,
+            hg.hora_fechamento,
+            hg.tempo_atendimento,
+            hg.cidade,
+            hg.telefone,
+            hg.situacaocontrato,
+            hg.situacaoassunto,
+            hg.codigoassi,
+            hg.razao_social
+            from relatoriospersonalizados.vis_geral_historicos_gerais_v3 hg
+        where hg.data_cadastro BETWEEN pdatainicial and pdatafinal and 
+        lower(to_ascii(hg.status::text)) ilike phistorico;
+                             
+        return query select * from temp_rp_grl_historicos_gerais_v3;
+		                 
+    end;
+$body$
+LANGUAGE 'plpgsql'
+VOLATILE
+CALLED ON NULL INPUT
+SECURITY INVOKER
+PARALLEL UNSAFE
+COST 100 ROWS 1000;
+
+ALTER FUNCTION relatoriospersonalizados.func_rp_grl_historicos_gerais_v3 (pdatainicial date, pdatafinal date, phistorico text)
+  OWNER TO postgres;
+ 
+--------------------------------------------------------------------------------------------------------------------------------------------
+
 
 
 
