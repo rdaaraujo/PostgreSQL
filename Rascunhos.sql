@@ -10227,6 +10227,23 @@ ALTER FUNCTION relatoriospersonalizados.func_rp_grl_historicos_gerais_v3 (pdatai
  
 --------------------------------------------------------------------------------------------------------------------------------------------
 
+-- SELECT TIRAR ENTER OBSERVAÇÃO EDINHO BNT
+select cl.nome, 
+translate(array_to_string(ARRAY
+         (
+           SELECT DISTINCT al.descricao
+           FROM alertas al
+           WHERE al.codassinante = cl.codigocliente
+           ORDER BY al.descricao
+         ), '- '::text), E'[\r\n]', '') AS observacao
+from alertas a
+join clientes cl on cl.cidade = a.codcidade and cl.codigocliente = a.codassinante
+where a.descricao is not null and
+      a.descricao ilike '%spc%'
+limit 100
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+
 
 
 
