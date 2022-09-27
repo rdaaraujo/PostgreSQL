@@ -6632,100 +6632,103 @@ where date(a.criadoem) between '2022-02-01' and '2022-02-28'
 --------------------------------------------------------------------------------------------------------------------------------------------
 
 --RELATORIO VENDAS PROSPECT 
-WITH status AS(
+WITH status AS (
   SELECT aa.assinatura,
-         max(aa.criadoem)::date AS dataalteracao
+              max(aa.criadoem)::date AS dataalteracao
   FROM interfocusprospect.assinaturaandamento aa
-  WHERE aa.statusassinaturaatual = ANY (ARRAY [ 3::bigint, 12::bigint ])
-  GROUP BY aa.assinatura)
-    SELECT a.id,
-           a.nome,
-           a.cpfcnpj AS cpf_cnpj,
-           c.vis_nome AS cidade,
-           sa.descricao AS status_assinatura,
-           cap.nome AS vendedor,
-           ul.nome AS analista,
-           a.criadoem::date,
-           CASE
-             WHEN (a.statusassinatura = ANY (ARRAY [ 3::bigint, 12::bigint ]))
-               AND s.assinatura IS NOT NULL AND s.dataalteracao IS NOT NULL THEN
-               s.dataalteracao
-             WHEN (a.statusassinatura = ANY (ARRAY [ 3::bigint, 12::bigint ]))
-               AND s.assinatura IS NOT NULL AND s.dataalteracao IS NULL THEN
-               a.ultimaalteracao::date
-             WHEN (a.statusassinatura = ANY (ARRAY [ 3::bigint, 12::bigint ]))
-               AND date (a.dataprocessamento) IS NULL THEN a.ultimaalteracao::
-               date
-             ELSE date (a.dataprocessamento)
-           END AS data_processamento,
-           (
-             SELECT translate(aa.observacao, ';'::text, ' '::text) AS translate
-             FROM interfocusprospect.assinaturaandamento aa
-             WHERE aa.assinatura = a.id
-             ORDER BY aa.id DESC
-             LIMIT 1
-           ) AS observacao,
-           (
-             SELECT ca_1.descricao
-             FROM interfocusprospect.assinaturaandamento aa
-                  LEFT JOIN interfocusprospect.classificacaoandamento ca_1 ON
-                    ca_1.id = aa.classificacaoandamento
-             WHERE aa.assinatura = a.id
-             ORDER BY aa.id DESC
-             LIMIT 1
-           ) AS classificacao,
-           (
-             SELECT ev.descricao
-             FROM vendedores v
-                  JOIN equipesdevenda ev ON ev.cidade = v.cidadeondetrabalha AND
-                    ev.codigo = v.equipevenda
-             WHERE v.id = cap.vendedorterceiros
-           ) AS equipe_venda,
-           date (a.nascimentoabertura) AS data_nascimento,
-           ct.id AS id_contrato,
-           tc.vis_descricao AS tipo_contrato,
-           tv.vis_descricao AS tipo_captacao,
-           ct.d_datadainstalacao AS data_instalacao,
-           a.carteiraterceiros AS codigo_carteira,
-           ca.descricao AS carteira,
-         /*  (
-             SELECT p.vis_id_pacote
-             FROM interfocusprospect.assinaturapacoteterceiros aa
-                  JOIN interfocusprospect.vis_pacotetabela p ON p.vis_id =
-                    aa.pacoteterceiros
-         --    WHERE aa.assinatura = a.id
-           ) AS id_pacote,*/
-           array_to_string(ARRAY
-           (
-             SELECT p.vis_nome_pacote::text AS vis_nome_pacote
-             FROM interfocusprospect.assinaturapacoteterceiros aa
-                  JOIN interfocusprospect.vis_pacotetabela p ON p.vis_id =
-                    aa.pacoteterceiros
-             WHERE aa.assinatura = a.id
-           ), ','::text, ''::text) AS pacotes,
-           array_to_string(ARRAY
-           (
-             SELECT sum(p.vis_valor) AS valor
-             FROM interfocusprospect.assinaturapacoteterceiros aaa
-                  JOIN interfocusprospect.vis_pacotetabela p ON p.vis_id =
-                    aaa.pacoteterceiros
-             WHERE aaa.assinatura = a.id
-           ), ''::text, ''::text) AS pacotes_valores
-    FROM interfocusprospect.assinatura a
-         JOIN interfocusprospect.statusassinatura sa ON sa.id =
-           a.statusassinatura
-         LEFT JOIN interfocusprospect.usuariolocal ul ON ul.id = a.analistaid
-         JOIN interfocusprospect.usuariolocal cap ON cap.id = a.captador
-         JOIN interfocusprospect.vis_cidade c ON c.vis_id =
-           a.municipioterceirosconexao
-         LEFT JOIN interfocusprospect.vis_tipocontrato tc ON tc.vis_id =
-           a.tipocontratoterceiros
-         LEFT JOIN interfocusprospect.vis_tiposdevenda tv ON tv.vis_id =
-           a.tipocaptacao
-         LEFT JOIN contratos ct ON ct.id = a.contratoid
-         LEFT JOIN carteira ca ON ca.id = a.carteiraterceiros
-         LEFT JOIN status s ON s.assinatura = a.id
-         where a.criadoem::date  between '2022-07-19'::date and '2022-07-21'::date
+  WHERE aa.statusassinaturaatual = ANY (ARRAY[3::bigint, 12::bigint])
+  GROUP BY aa.assinatura
+)
+  SELECT DISTINCT a.id as idCliente,
+  a.nome as nomeCliente,
+  translate(a.cpfcnpj::text, ' .,:-//\_+='::text, ''::text) AS cpfCnpj,
+  c.vis_nome AS nomeCidade,
+  l.vis_nome_logradouro AS nomeLogradouro,
+  a.numeroconexao AS numLogradouro,
+  cep.vis_numero_cep AS numCep,
+  sa.descricao AS statusAssinatura,
+  cap.nome AS nomeVendedor,
+  ul.nome AS nomeAnalista,
+  date(a.criadoem) AS criadoEm,
+      CASE
+          WHEN (a.statusassinatura = ANY (ARRAY[3::bigint,12::BIGINT, 21::BIGINT])) AND
+              s.assinatura IS NOT NULL AND s.dataalteracao IS NOT NULL THEN s.dataalteracao
+          WHEN (a.statusassinatura = ANY (ARRAY[3::bigint,12::BIGINT,  21::BIGINT])) AND
+              s.assinatura IS NOT NULL AND s.dataalteracao IS NULL THEN a.ultimaalteracao::date
+          WHEN (a.statusassinatura = ANY (ARRAY[3::bigint,12::BIGINT,  21::BIGINT])) AND
+              date(a.dataprocessamento) IS NULL THEN a.ultimaalteracao::date
+          ELSE date(a.dataprocessamento)
+      END AS dataProcessamento,
+  (
+      SELECT replace(translate(aa.observacao, ';'::text, ' '::text),E'\n',' ') AS translate
+      FROM interfocusprospect.assinaturaandamento aa
+      WHERE aa.assinatura = a.id
+      ORDER BY aa.id DESC
+      LIMIT 1
+      ) AS observacao,
+  (
+      SELECT ca_1.descricao
+      FROM interfocusprospect.assinaturaandamento aa
+      LEFT JOIN interfocusprospect.classificacaoandamento ca_1 ON ca_1.id = aa.classificacaoandamento
+      WHERE aa.assinatura = a.id
+      ORDER BY aa.id DESC
+      LIMIT 1
+      ) AS classificacao,
+  (
+      SELECT ev.descricao
+      FROM vendedores v
+      JOIN equipesdevenda ev ON ev.cidade = v.cidadeondetrabalha AND ev.codigo = v.equipevenda
+      WHERE v.id = cap.vendedorterceiros
+      LIMIT 1
+      ) AS equipeVenda,
+  date(a.nascimentoabertura) AS dataNascimento,
+  ct.id AS idContrato,
+  tc.vis_descricao AS tipoContrato,
+  tv.vis_descricao AS tipoCaptacao,
+  ct.d_datadainstalacao AS dataInstalacao,
+  a.carteiraterceiros AS carteiraTerceiros,
+  ca.descricao AS codigoCarteira,
+  (
+      SELECT pr.id
+      FROM interfocusprospect.assinaturapacoteterceiros aa
+      join prodtabelapreco ptb on ptb.id=aa.pacoteterceiros
+      JOIN tabeladeprecos t ON t.codigo = ptb.codigodatabela AND t.codcidade = ptb.codcidade
+      JOIN programacao pr ON pr.codcidade = ptb.codcidade AND pr.codigodaprogramacao = ptb.codigodaprogramacao
+      LEFT JOIN vis_combos cb ON cb.codigodaprogramacao = pr.codigodaprogramacao AND cb.codcidade = pr.codcidade
+      WHERE aa.assinatura = a.id
+      LIMIT 1
+      ) AS idPacote,
+      array_to_string(ARRAY(  
+      SELECT pr.nomedaprogramacao::text AS vis_nome_pacote
+      FROM interfocusprospect.assinaturapacoteterceiros aa
+      join prodtabelapreco ptb on ptb.id=aa.pacoteterceiros
+      JOIN tabeladeprecos t ON t.codigo = ptb.codigodatabela AND t.codcidade = ptb.codcidade
+      JOIN programacao pr ON pr.codcidade = ptb.codcidade AND pr.codigodaprogramacao = ptb.codigodaprogramacao
+      LEFT JOIN vis_combos cb ON cb.codigodaprogramacao = pr.codigodaprogramacao AND cb.codcidade = pr.codcidade
+      WHERE aa.assinatura = a.id
+      ), ','::text, ''::text) AS nomePacotes,
+      array_to_string(ARRAY(
+      SELECT sum(ptb.valordaprogramacao) AS valor
+      FROM interfocusprospect.assinaturapacoteterceiros aaa
+      join prodtabelapreco ptb on ptb.id=aaa.pacoteterceiros
+      JOIN tabeladeprecos t ON t.codigo = ptb.codigodatabela AND t.codcidade = ptb.codcidade
+      JOIN programacao pr ON pr.codcidade = ptb.codcidade AND pr.codigodaprogramacao = ptb.codigodaprogramacao
+      LEFT JOIN vis_combos cb ON cb.codigodaprogramacao = pr.codigodaprogramacao AND cb.codcidade = pr.codcidade
+      WHERE aaa.assinatura = a.id
+      ), ','::text, ''::text) AS valorPacotes
+  FROM interfocusprospect.assinatura a
+   JOIN interfocusprospect.statusassinatura sa ON sa.id = a.statusassinatura
+   LEFT JOIN interfocusprospect.usuariolocal ul ON ul.id = a.analistaid
+   JOIN interfocusprospect.usuariolocal cap ON cap.id = a.captador
+   JOIN interfocusprospect.vis_cidade c ON c.vis_id = a.municipioterceirosconexao
+   JOIN interfocusprospect.vis_logradouro l ON l.vis_id = a.logradouroterceirosconexao
+   JOIN interfocusprospect.vis_cep cep ON cep.vis_id = a.cepterceirosconexao
+   LEFT JOIN interfocusprospect.vis_tipocontrato tc ON tc.vis_id = a.tipocontratoterceiros
+   LEFT JOIN interfocusprospect.vis_tiposdevenda tv ON tv.vis_id = a.tipocaptacao
+   LEFT JOIN contratos ct ON ct.id = a.contratoid
+   LEFT JOIN carteira ca ON ca.id = a.carteiraterceiros
+   LEFT JOIN status s ON s.assinatura = a.id
+      where a.criadoem::date between pdatainicial::Date and pdatafinal::Date;
 
 --------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -10243,6 +10246,159 @@ where a.descricao is not null and
 limit 100
 
 --------------------------------------------------------------------------------------------------------------------------------------------
+
+--FORMATA CEP
+(substring(cep.vis_numero_cep, 1, 5) || '-' || substring(cep.vis_numero_cep, 6, 3)) AS numCep
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+
+--FUNÇÃO RELATÓRIO VENDAS PROSPECT CONEXÃO
+
+CREATE OR REPLACE FUNCTION relatoriospersonalizados.func_rp_vendas_prospect (
+  pdatainicial date,
+  pdatafinal date
+)
+RETURNS TABLE (
+  idcliente bigint,
+  nomecliente varchar,
+  cpfcnpj text,
+  nomecidade text,
+  nomelogradouro text,
+  numerologradouro varchar,
+  numerocep varchar,
+  statusassinatura varchar,
+  nomevendedor varchar,
+  nomeanalista varchar,
+  criadoem date,
+  dataprocessamento date,
+  observacao text,
+  classificacao varchar,
+  equipevenda varchar,
+  datanascimento date,
+  idcontrato bigint,
+  tipocontrato varchar,
+  tipocaptacao varchar,
+  datainstalacao date,
+  carteiraterceiros bigint,
+  codigocarteira varchar,
+  idpacote bigint,
+  nomepacotes text,
+  valorpacotes text
+) AS
+$body$
+    BEGIN
+    	return query
+WITH status AS (
+  SELECT aa.assinatura,
+              max(aa.criadoem)::date AS dataalteracao
+  FROM interfocusprospect.assinaturaandamento aa
+  WHERE aa.statusassinaturaatual = ANY (ARRAY[3::bigint, 12::bigint])
+  GROUP BY aa.assinatura
+)
+  SELECT DISTINCT a.id as idCliente,
+  a.nome as nomeCliente,
+  translate(a.cpfcnpj::text, ' .,:-//\_+='::text, ''::text) AS cpfCnpj,
+  c.vis_nome AS nomeCidade,
+  l.vis_nome_logradouro AS nomeLogradouro,
+  a.numeroconexao AS numLogradouro,
+  cep.vis_numero_cep AS numCep,
+  sa.descricao AS statusAssinatura,
+  cap.nome AS nomeVendedor,
+  ul.nome AS nomeAnalista,
+  date(a.criadoem) AS criadoEm,
+      CASE
+          WHEN (a.statusassinatura = ANY (ARRAY[3::bigint,12::BIGINT, 21::BIGINT])) AND
+              s.assinatura IS NOT NULL AND s.dataalteracao IS NOT NULL THEN s.dataalteracao
+          WHEN (a.statusassinatura = ANY (ARRAY[3::bigint,12::BIGINT,  21::BIGINT])) AND
+              s.assinatura IS NOT NULL AND s.dataalteracao IS NULL THEN a.ultimaalteracao::date
+          WHEN (a.statusassinatura = ANY (ARRAY[3::bigint,12::BIGINT,  21::BIGINT])) AND
+              date(a.dataprocessamento) IS NULL THEN a.ultimaalteracao::date
+          ELSE date(a.dataprocessamento)
+      END AS dataProcessamento,
+  (
+      SELECT replace(translate(aa.observacao, ';'::text, ' '::text),E'\n',' ') AS translate
+      FROM interfocusprospect.assinaturaandamento aa
+      WHERE aa.assinatura = a.id
+      ORDER BY aa.id DESC
+      LIMIT 1
+      ) AS observacao,
+  (
+      SELECT ca_1.descricao
+      FROM interfocusprospect.assinaturaandamento aa
+      LEFT JOIN interfocusprospect.classificacaoandamento ca_1 ON ca_1.id = aa.classificacaoandamento
+      WHERE aa.assinatura = a.id
+      ORDER BY aa.id DESC
+      LIMIT 1
+      ) AS classificacao,
+  (
+      SELECT ev.descricao
+      FROM vendedores v
+      JOIN equipesdevenda ev ON ev.cidade = v.cidadeondetrabalha AND ev.codigo = v.equipevenda
+      WHERE v.id = cap.vendedorterceiros
+      LIMIT 1
+      ) AS equipeVenda,
+  date(a.nascimentoabertura) AS dataNascimento,
+  ct.id AS idContrato,
+  tc.vis_descricao AS tipoContrato,
+  tv.vis_descricao AS tipoCaptacao,
+  ct.d_datadainstalacao AS dataInstalacao,
+  a.carteiraterceiros AS carteiraTerceiros,
+  ca.descricao AS codigoCarteira,
+  (
+      SELECT pr.id
+      FROM interfocusprospect.assinaturapacoteterceiros aa
+      join prodtabelapreco ptb on ptb.id=aa.pacoteterceiros
+      JOIN tabeladeprecos t ON t.codigo = ptb.codigodatabela AND t.codcidade = ptb.codcidade
+      JOIN programacao pr ON pr.codcidade = ptb.codcidade AND pr.codigodaprogramacao = ptb.codigodaprogramacao
+      LEFT JOIN vis_combos cb ON cb.codigodaprogramacao = pr.codigodaprogramacao AND cb.codcidade = pr.codcidade
+      WHERE aa.assinatura = a.id
+      LIMIT 1
+      ) AS idPacote,
+      array_to_string(ARRAY(  
+      SELECT pr.nomedaprogramacao::text AS vis_nome_pacote
+      FROM interfocusprospect.assinaturapacoteterceiros aa
+      join prodtabelapreco ptb on ptb.id=aa.pacoteterceiros
+      JOIN tabeladeprecos t ON t.codigo = ptb.codigodatabela AND t.codcidade = ptb.codcidade
+      JOIN programacao pr ON pr.codcidade = ptb.codcidade AND pr.codigodaprogramacao = ptb.codigodaprogramacao
+      LEFT JOIN vis_combos cb ON cb.codigodaprogramacao = pr.codigodaprogramacao AND cb.codcidade = pr.codcidade
+      WHERE aa.assinatura = a.id
+      ), ','::text, ''::text) AS nomePacotes,
+      array_to_string(ARRAY(
+      SELECT sum(ptb.valordaprogramacao) AS valor
+      FROM interfocusprospect.assinaturapacoteterceiros aaa
+      join prodtabelapreco ptb on ptb.id=aaa.pacoteterceiros
+      JOIN tabeladeprecos t ON t.codigo = ptb.codigodatabela AND t.codcidade = ptb.codcidade
+      JOIN programacao pr ON pr.codcidade = ptb.codcidade AND pr.codigodaprogramacao = ptb.codigodaprogramacao
+      LEFT JOIN vis_combos cb ON cb.codigodaprogramacao = pr.codigodaprogramacao AND cb.codcidade = pr.codcidade
+      WHERE aaa.assinatura = a.id
+      ), ','::text, ''::text) AS valorPacotes
+  FROM interfocusprospect.assinatura a
+   JOIN interfocusprospect.statusassinatura sa ON sa.id = a.statusassinatura
+   LEFT JOIN interfocusprospect.usuariolocal ul ON ul.id = a.analistaid
+   JOIN interfocusprospect.usuariolocal cap ON cap.id = a.captador
+   JOIN interfocusprospect.vis_cidade c ON c.vis_id = a.municipioterceirosconexao
+   JOIN interfocusprospect.vis_logradouro l ON l.vis_id = a.logradouroterceirosconexao
+   JOIN interfocusprospect.vis_cep cep ON cep.vis_id = a.cepterceirosconexao
+   LEFT JOIN interfocusprospect.vis_tipocontrato tc ON tc.vis_id = a.tipocontratoterceiros
+   LEFT JOIN interfocusprospect.vis_tiposdevenda tv ON tv.vis_id = a.tipocaptacao
+   LEFT JOIN contratos ct ON ct.id = a.contratoid
+   LEFT JOIN carteira ca ON ca.id = a.carteiraterceiros
+   LEFT JOIN status s ON s.assinatura = a.id
+      where a.criadoem::date between pdatainicial::Date and pdatafinal::Date;
+ end;
+$body$
+LANGUAGE 'plpgsql'
+VOLATILE
+CALLED ON NULL INPUT
+SECURITY INVOKER
+PARALLEL UNSAFE
+COST 100 ROWS 1000;
+
+ALTER FUNCTION relatoriospersonalizados.func_rp_vendas_prospect (pdatainicial date, pdatafinal date)
+  OWNER TO postgres;
+ 
+--------------------------------------------------------------------------------------------------------------------------------------------
+
 
 
 
