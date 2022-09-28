@@ -10399,6 +10399,110 @@ ALTER FUNCTION relatoriospersonalizados.func_rp_vendas_prospect (pdatainicial da
  
 --------------------------------------------------------------------------------------------------------------------------------------------
 
+--RELATÓRIO CONTROLADORIA COBRANÇA BNT
+SELECT hg.d_datacadastro AS "DATA ABERTURA ATENDIMENTO",
+       hg.controle AS "ATENDIMENTO",
+       ah.descricao AS "TOPICO ATENDIMENTO",
+       tsh.descricao AS "CAUSA ATENDIMENTO",
+       translate(hg.descricao, E'[\r\n]+', ' ') as "ENCERRAMENTO HISTORICO",
+       cli.codigocliente AS "CODIGO CLIENTE",
+       cli.nome AS "NOME CLIENTE",
+       CASE
+         WHEN ct.situacao = 1 THEN 'Aguardando Conexão'::text
+         WHEN ct.situacao = 2 THEN 'Conectado / Ativo'::text
+         WHEN ct.situacao = 3 THEN 'Pausado'::text
+         WHEN ct.situacao = 4 THEN 'Inadimplente'::text
+         WHEN ct.situacao = 5 THEN 'Cancelado'::text
+         WHEN ct.situacao = 6 THEN 'Endereço não Cabeado'::text
+         WHEN ct.situacao = 7 THEN 'Conectado / Inadimplente'::text
+         ELSE 'Outros'::text
+       END AS "SITUAÇÃO CONTRATO",
+       cid.nomedacidade AS "FILIAL",
+       ''::text AS "GRUPO DO CADASTRO",
+       ct.contrato AS "N CONTRATO",
+       prg.codigodaprogramacao AS "CODIGO PLANO",
+       prg.nomedaprogramacao AS "DESCRIÇÃO PLANO",
+       translate(to_char(cp.valorpacote, '"R$ " 999G999G990D99'::text), ' '::text, ''::text) AS "VALOR PLANO",
+       ''::text AS "SITUAÇAO CONTRATO",
+       to_char(hg.d_datacadastro::timestamp with time zone, 'MM/YYYY'::text) AS "COMPETÊNCIA",
+       hg.atendente AS "VENDEDOR"
+FROM historicogeral hg
+     JOIN clientes cli ON cli.cidade = hg.codigocidade AND cli.codigocliente = hg.assinante
+     LEFT JOIN contratos ct ON ct.cidade = hg.codigocidade AND ct.codigodocliente = hg.assinante AND ct.contrato = hg.codcontrato
+     JOIN cont_prog cp ON cp.cidade = ct.cidade AND cp.contrato = ct.contrato
+     JOIN programacao prg ON prg.codcidade = cp.cidade AND prg.codigodaprogramacao = cp.protabelaprecos
+     JOIN grupohistorico gh ON gh.codigo = hg.grupoassunto
+     JOIN assuntohistorico ah ON ah.codigogrupo = gh.codigo AND ah.codigoassunto = hg.assunto
+     JOIN tiposituacaohistorico tsh ON tsh.codigo = hg.codigotiposituacao
+     JOIN cidade cid ON cid.codigodacidade = cli.cidade
+WHERE hg.grupoassunto = 461 AND hg.assunto = 11 and hg.d_datacadastro = '20220901'
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+
+--VIEW RELATÓRIO CONTROLADORIA COBRANÇA BNT
+CREATE VIEW relatoriospersonalizados.vis_controladoria_cobranca (
+    "DATA ABERTURA ATENDIMENTO",
+    "ATENDIMENTO",
+    "TOPICO ATENDIMENTO",
+    "CAUSA ATENDIMENTO",
+    "ENCERRAMENTO HISTORICO",
+    "CODIGO CLIENTE",
+    "NOME CLIENTE",
+    "SITUAÇÃO CONTRATO",
+    "FILIAL",
+    "GRUPO DO CADASTRO",
+    "N CONTRATO",
+    "CODIGO PLANO",
+    "DESCRIÇÃO PLANO",
+    "VALOR PLANO",
+    "SITUAÇAO CONTRATO",
+    "COMPETÊNCIA",
+    "VENDEDOR")
+AS
+SELECT hg.d_datacadastro AS "DATA ABERTURA ATENDIMENTO",
+    hg.controle AS "ATENDIMENTO",
+    ah.descricao AS "TOPICO ATENDIMENTO",
+    tsh.descricao AS "CAUSA ATENDIMENTO",
+    translate(hg.descricao, E'[\r\n]+', ' ') as "ENCERRAMENTO HISTORICO",
+    cli.codigocliente AS "CODIGO CLIENTE",
+    cli.nome AS "NOME CLIENTE",
+        CASE
+            WHEN ct.situacao = 1 THEN 'Aguardando Conexão'::text
+            WHEN ct.situacao = 2 THEN 'Conectado / Ativo'::text
+            WHEN ct.situacao = 3 THEN 'Pausado'::text
+            WHEN ct.situacao = 4 THEN 'Inadimplente'::text
+            WHEN ct.situacao = 5 THEN 'Cancelado'::text
+            WHEN ct.situacao = 6 THEN 'Endereço não Cabeado'::text
+            WHEN ct.situacao = 7 THEN 'Conectado / Inadimplente'::text
+            ELSE 'Outros'::text
+        END AS "SITUAÇÃO CONTRATO",
+    cid.nomedacidade AS "FILIAL",
+    ''::text AS "GRUPO DO CADASTRO",
+    ct.contrato AS "N CONTRATO",
+    prg.codigodaprogramacao AS "CODIGO PLANO",
+    prg.nomedaprogramacao AS "DESCRIÇÃO PLANO",
+    translate(to_char(cp.valorpacote, '"R$ " 999G999G990D99'::text), ' '::text, ''::text) AS "VALOR PLANO",
+    ''::text AS "SITUAÇAO CONTRATO",
+    to_char(hg.d_datacadastro::timestamp with time zone, 'MM/YYYY'::text) AS "COMPETÊNCIA",
+    hg.atendente AS "VENDEDOR"
+FROM historicogeral hg
+     JOIN clientes cli ON cli.cidade = hg.codigocidade AND cli.codigocliente = hg.assinante
+     LEFT JOIN contratos ct ON ct.cidade = hg.codigocidade AND ct.codigodocliente = hg.assinante AND ct.contrato = hg.codcontrato
+     JOIN cont_prog cp ON cp.cidade = ct.cidade AND cp.contrato = ct.contrato
+     JOIN programacao prg ON prg.codcidade = cp.cidade AND prg.codigodaprogramacao = cp.protabelaprecos
+     JOIN grupohistorico gh ON gh.codigo = hg.grupoassunto
+     JOIN assuntohistorico ah ON ah.codigogrupo = gh.codigo AND ah.codigoassunto = hg.assunto
+     JOIN tiposituacaohistorico tsh ON tsh.codigo = hg.codigotiposituacao
+     JOIN cidade cid ON cid.codigodacidade = cli.cidade
+WHERE hg.grupoassunto = 461 AND hg.assunto = 11;
+
+ALTER VIEW relatoriospersonalizados.vis_controladoria_cobranca
+  OWNER TO postgres;
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
 
 
 
