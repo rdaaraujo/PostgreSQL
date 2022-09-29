@@ -10501,6 +10501,76 @@ ALTER VIEW relatoriospersonalizados.vis_controladoria_cobranca
 
 --------------------------------------------------------------------------------------------------------------------------------------------
 
+--VIEW RELATÓRIO MATERIAL RETIRADO/UTILIZADO OS CONEXÃO
+CREATE VIEW relatoriospersonalizados.vis_equipamentos_utilizados_retirados_os (
+    razaosocial,
+    codempresa,
+    nomedacidade,
+    codigoassinante,
+    nome,
+    nomedaequipe,
+    codigocontrato,
+    situacao,
+    numos,
+    codservsolicitado,
+    descricaodoserv_lanc,
+    tipoassinante,
+    codigomaterial,
+    quantidade,
+    materialutilizado,
+    codmtadicionado,
+    descricaomtu,
+    materialretirado,
+    codmtretirado,
+    descricaomtr,
+    d_dataatendimento,
+    codigodaequipe)
+AS
+SELECT ca.descricao AS razaosocial,
+    ca.codigo AS codempresa,
+    ci.nomedacidade,
+    os.codigoassinante,
+    c.nome,
+    e.nomedaequipe,
+    os.codigocontrato,
+        CASE
+            WHEN os.situacao = 1 THEN 'Pendente'::text
+            WHEN os.situacao = 2 THEN 'Em Atendimento'::text
+            WHEN os.situacao = 3 THEN 'ConcluIda'::text
+            ELSE NULL::text
+        END AS situacao,
+    os.numos,
+    os.codservsolicitado,
+    ls.descricaodoserv_lanc,
+    c.tipoassinante,
+    a.codigomaterial,
+    a.quantidade,
+    a.conversoroudecodificador AS materialutilizado,
+    a.codigomaterial AS codmtadicionado,
+    b.descricao AS descricaomtu,
+    mr.identificacao AS materialretirado,
+    mr.codigomaterial AS codmtretirado,
+    mr.descricao AS descricaomtr,
+    os.d_dataatendimento,
+    e.codigodaequipe
+FROM ordemservico os
+     JOIN contratos ct ON ct.cidade = os.cidade AND ct.contrato = os.codigocontrato
+     JOIN empresas ep ON ep.codempresa = ct.codempresa AND ep.codcidade = ct.cidade
+     JOIN carteira ca ON ca.codigo = ct.codcarteira
+     LEFT JOIN materiaisos a ON os.numos = a.numos
+     LEFT JOIN materiaisosretirada mr ON mr.numos = os.numos
+     LEFT JOIN produtos b ON a.codigomaterial = b.codigo
+     LEFT JOIN materiaisosretirada ON mr.codigomaterial = b.codigo
+     JOIN cidade ci ON ci.codigodacidade = os.cidade
+     JOIN clientes c ON c.codigocliente = os.codigoassinante
+     LEFT JOIN equipe e ON os.cidade = e.codigocidade AND os.equipeexecutou = e.codigodaequipe
+     JOIN lanceservicos ls ON os.codservsolicitado = ls.codigodoserv_lanc;
+
+ALTER VIEW relatoriospersonalizados.vis_equipamentos_utilizados_retirados_os
+  OWNER TO postgres;
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+
 
 
 
