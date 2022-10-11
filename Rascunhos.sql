@@ -955,7 +955,7 @@ select dr.codigodacidade,
 Conforme solicitação finalizada, estaremos encerrando este ticket.
 
 
-Porém, caso haja necessidade de interagir novamente, peço para que abra um novo chamado referenciando o mesmo!
+Porém, caso haja necessidade de interagir novamente, peço para que abra um novo chamado referenciando o mesmesmo!
 Desde já agradecemos o contato, para quaisquer eventualidades estaremos à total disposição!
 
 
@@ -10404,7 +10404,7 @@ SELECT hg.d_datacadastro AS "DATA ABERTURA ATENDIMENTO",
        hg.controle AS "ATENDIMENTO",
        ah.descricao AS "TOPICO ATENDIMENTO",
        tsh.descricao AS "CAUSA ATENDIMENTO",
-       translate(hg.descricao, E'[\r\n]+', ' ') as "ENCERRAMENTO HISTORICO",
+       translate(hg.descricao, E'[\r\n]+', ' ') as "HISTORICO",
        cli.codigocliente AS "CODIGO CLIENTE",
        cli.nome AS "NOME CLIENTE",
        CASE
@@ -10445,7 +10445,7 @@ CREATE VIEW relatoriospersonalizados.vis_controladoria_cobranca (
     "ATENDIMENTO",
     "TOPICO ATENDIMENTO",
     "CAUSA ATENDIMENTO",
-    "ENCERRAMENTO HISTORICO",
+    " HISTORICO",
     "CODIGO CLIENTE",
     "NOME CLIENTE",
     "SITUAÇÃO CONTRATO",
@@ -10463,7 +10463,7 @@ SELECT hg.d_datacadastro AS "DATA ABERTURA ATENDIMENTO",
     hg.controle AS "ATENDIMENTO",
     ah.descricao AS "TOPICO ATENDIMENTO",
     tsh.descricao AS "CAUSA ATENDIMENTO",
-    translate(hg.descricao, E'[\r\n]+', ' ') as "ENCERRAMENTO HISTORICO",
+    translate(hg.descricao, E'[\r\n]+', ' ') as " HISTORICO",
     cli.codigocliente AS "CODIGO CLIENTE",
     cli.nome AS "NOME CLIENTE",
         CASE
@@ -10568,6 +10568,744 @@ FROM ordemservico os
 
 ALTER VIEW relatoriospersonalizados.vis_equipamentos_utilizados_retirados_os
   OWNER TO postgres;
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+
+-- RELATÓRIO INADIMPLENTES CONEXÃO - ORIGINAL 30855
+CREATE VIEW regrasoperacao.vis_boletos_em_aberto_geral (
+    cidade,
+    codigocliente,
+    nome,
+    vip,
+    contrato,
+    carteira,
+    data_nascimento,
+    tipo,
+    numerodocumento,
+    datavencimento,
+    valordocumento,
+    datapagamento,
+    valorpago,
+    valordesconto,
+    saldo,
+    linhadigitavel,
+    tipopagamento,
+    localcobranca,
+    tipocontrato,
+    cpf_cnpj,
+    classificao,
+    telefone,
+    vencimentocontrato,
+    situacaocontrato,
+    periodofatura,
+    telefone1,
+    telefone2,
+    telefone3,
+    idcontrato,
+    bairro,
+    tipo_logradouro,
+    logradouro,
+    numero_conexao,
+    cep_conexao,
+    faturaimpressa,
+    enviarporemail)
+AS
+SELECT DISTINCT cid.nomedacidade AS cidade,
+    cli.codigocliente,
+    cli.nome,
+        CASE
+            WHEN cli.vip = 1 THEN 'SIM'::text
+            ELSE 'NÃO'::text
+        END AS vip,
+    ct.contrato,
+    ca.descricao AS carteira,
+    cli.d_datanascimento AS data_nascimento,
+        CASE
+            WHEN dr.reparcelamento = 1 THEN 'Reparcelado'::text
+            WHEN dr.boletoequipamento = 1 THEN 'Equipamento'::text
+            WHEN dr.situacao = 1 THEN 'Cancelado'::text
+            ELSE 'Normal'::text
+        END AS tipo,
+    dr.numerodocumento,
+    dr.d_datavencimento AS datavencimento,
+    dr.valordocumento,
+    dr.d_datapagamento AS datapagamento,
+    dr.valorpago,
+    dr.valordesconto,
+    dr.valordocumento + dr.valorjuros + dr.valormulta - dr.valordesconto AS saldo,
+    dr.linhadigitavelcalculada AS linhadigitavel,
+        CASE
+            WHEN dr.tipopagamento = ANY (ARRAY[1, 3]) THEN 'Dinheiro'::text
+            WHEN dr.tipopagamento = 2 THEN 'Cheque'::text
+            WHEN dr.tipopagamento = 4 THEN 'Cartão de Débito'::text
+            WHEN dr.tipopagamento = 5 THEN 'Cartão de Crédito'::text
+            ELSE NULL::text
+        END AS tipopagamento,
+    l.descricao AS localcobranca,
+    tc.descricao AS tipocontrato,
+    cli.cpf_cnpj,
+        CASE
+            WHEN length(cli.cpf_cnpj::text) = 14 THEN 'PF'::text
+            ELSE 'PJ'::text
+        END AS classificao,
+    func_retornatelefones(cli.cidade, cli.codigocliente) AS telefone,
+    ct.dtvencto AS vencimentocontrato,
+    v.descricaosituacao AS situacaocontrato,
+    to_char(dr.d_datafaturamento::timestamp with time zone, 'YYYY-MM-01'::text)::date AS periodofatura,
+    (
+    SELECT translate(t.ddd || t.telefone::text, '.,-() '::text, ''::text) AS telefone1
+    FROM telefones t
+    WHERE t.cidade = cli.cidade AND t.codigocliente = cli.codigocliente
+    LIMIT 1
+    ) AS telefone1,
+    (
+    SELECT translate(t.ddd || t.telefone::text, '.,-() '::text, ''::text) AS telefone1
+    FROM telefones t
+    WHERE t.cidade = cli.cidade AND t.codigocliente = cli.codigocliente
+    OFFSET 1
+    LIMIT 1
+    ) AS telefone2,
+    (
+    SELECT translate(t.ddd || t.telefone::text, '.,-() '::text, ''::text) AS telefone1
+    FROM telefones t
+    WHERE t.cidade = cli.cidade AND t.codigocliente = cli.codigocliente
+    OFFSET 2
+    LIMIT 1
+    ) AS telefone3,
+    ct.id AS idcontrato,
+    ct.bairroconexao AS bairro,
+    en.tipodologradouro AS tipo_logradouro,
+    en.nomelogradouro AS logradouro,
+    ct.numeroconexao AS numero_conexao,
+    ct.cepconexao AS cep_conexao,
+        CASE
+            WHEN ct.faturaimpressa = 1 THEN 'SIM'::text
+            ELSE 'NÃO'::text
+        END AS faturaimpressa,
+        CASE
+            WHEN ct.enviarporemail = 1 THEN 'SIM'::text
+            ELSE 'NÃO'::text
+        END AS enviarporemail
+FROM docreceber dr
+     JOIN cidade cid ON cid.codigodacidade = dr.codigodacidade
+     JOIN clientes cli ON cli.cidade = dr.codigodacidade AND cli.codigocliente = dr.cliente
+     JOIN regional r ON r.codigo = cid.codigo_regional
+     JOIN localcobranca l ON l.codigo = dr.localcobranca
+     JOIN movimfinanceiro m ON m.numfatura = dr.fatura
+     JOIN contratos ct ON ct.cidade = m.cidade AND ct.codempresa = m.codempresa AND ct.contrato = m.contrato
+     LEFT JOIN tiposcontrato tc ON tc.codigo = ct.tipodocontrato
+     LEFT JOIN vis_situacaocontrato_descricao v ON v.situacao = ct.situacao
+     JOIN enderecos en ON en.codigodologradouro = ct.enderecoconexao
+     JOIN carteira ca ON ca.codigo = ct.codcarteira AND en.codigodacidade = ct.cidade
+WHERE dr.d_datapagamento IS NULL AND dr.situacao = 0;
+
+ALTER VIEW regrasoperacao.vis_boletos_em_aberto_geral
+  OWNER TO postgres;
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+
+--VIEW RELATÓRIO MATERIAL UTILIZADO/RETIRADO OS
+CREATE VIEW regrasoperacao.vis_equipamentos_utilizados_retirados_os (
+    razaosocial,
+    codempresa,
+    nomedacidade,
+    codigoassinante,
+    nome,
+    nomedaequipe,
+    codigocontrato,
+    situacao,
+    numos,
+    descricaodoserv_lanc,
+    tipoassinante,
+    codigomaterial,
+    quantidade,
+    materialutilizado,
+    codmtadicionado,
+    descricaomtu,
+    materialretirado,
+    codmtretirado,
+    descricaomtr,
+    d_dataatendimento,
+    codigodaequipe)
+AS
+SELECT ca.descricao AS razaosocial,
+    ca.codigo AS codempresa,
+    ci.nomedacidade,
+    os.codigoassinante,
+    c.nome,
+    e.nomedaequipe,
+    os.codigocontrato,
+        CASE
+            WHEN os.situacao = 1 THEN 'Pendente'::text
+            WHEN os.situacao = 2 THEN 'Em Atendimento'::text
+            WHEN os.situacao = 3 THEN 'ConcluIda'::text
+            ELSE NULL::text
+        END AS situacao,
+    os.numos,
+    ls.descricaodoserv_lanc,
+    c.tipoassinante,
+    a.codigomaterial,
+    a.quantidade,
+    a.conversoroudecodificador AS materialutilizado,
+    a.codigomaterial AS codmtadicionado,
+    b.descricao AS descricaomtu,
+    mr.identificacao AS materialretirado,
+    mr.codigomaterial AS codmtretirado,
+    mr.descricao AS descricaomtr,
+    os.d_dataatendimento,
+    e.codigodaequipe
+FROM ordemservico os
+     JOIN cidade ci ON ci.codigodacidade = os.cidade
+     JOIN contratos ct ON ct.cidade = os.cidade AND ct.codempresa = os.codempresa AND ct.contrato = os.codigocontrato
+     JOIN empresas ep ON ep.codempresa = ct.codempresa AND ep.codcidade = ct.cidade
+     JOIN carteira ca ON ca.codigo = ct.codcarteira
+     LEFT JOIN materiaisos a ON a.codigocidade = os.cidade AND a.codempresa = os.codempresa AND os.numos = a.numos
+     LEFT JOIN produtos b ON b.codigo = a.codigomaterial
+     LEFT JOIN materiaisosretirada mr ON mr.codigocidade = os.cidade AND mr.codempresa = os.codempresa AND mr.numos = os.numos AND mr.codigomaterial = b.codigo
+     JOIN clientes c ON c.cidade = ct.cidade AND c.codigocliente = ct.codigodocliente
+     LEFT JOIN equipe e ON os.cidade = e.codigocidade AND os.equipeexecutou = e.codigodaequipe
+     JOIN lanceservicos ls ON os.codservsolicitado = ls.codigodoserv_lanc;
+
+ALTER VIEW regrasoperacao.vis_equipamentos_utilizados_retirados_os
+  OWNER TO postgres;
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+
+-- RELATÓRIO DICI SUPERCABO FRED 30695
+-- DICI ORIGINAL
+SELECT x.codunificadora as vis_unificadora,
+       x.mes AS vis_mes,
+       x.nome AS vis_nome,
+       x.descricao AS vis_descricao,
+       sum(x.qtde) AS vis_qtde,
+       x.periodo
+       FROM (
+       	SELECT tab.mes,
+               tab.id,
+               tab.nome,
+               tab.periodo,
+               tab.codunificadora,
+               CASE
+               	WHEN sum(tab.tv) > 0 AND sum(tab.internet) > 0 THEN 'TV + Internet'::text
+               	WHEN sum(tab.tv) > 0 AND sum(tab.internet) = 0 THEN 'TV'::text
+               	WHEN sum(tab.tv) = 0 AND sum(tab.internet) > 0 THEN 'Internet'::text
+               	ELSE NULL::text
+               END AS descricao,
+               1 AS qtde
+               FROM (
+                 SELECT to_char(n.d_dataemissao::timestamp with time zone, 'YYYY-MM'::text) AS mes,
+                        n.id,
+                        t.nome,
+                        n.d_dataemissao,
+                        n.codunificadora,
+                        n.periodo,
+                        CASE
+                         WHEN i.codclassificacaoconv115 = 103 THEN 1
+                         ELSE 0
+                        END AS tv,
+                        CASE
+                         WHEN i.codclassificacaoconv115 <> 103 THEN 1
+                         ELSE 0
+                        END AS internet
+                        FROM nfviaunica n
+                        JOIN tablocal t ON t.codigo = n.codcidade
+                        JOIN itensnf i ON i.idnfconvenio = n.id::double precision
+                        WHERE n.tiponf = 1
+               	    ) tab
+        GROUP BY tab.codunificadora, tab.mes, tab.id, tab.nome, tab.periodo
+       ) x
+WHERE x.descricao IS NOT NULL and x.periodo = '08/2022'
+GROUP BY x.codunificadora, x.mes, x.nome, x.descricao, x.periodo
+ORDER BY x.codunificadora, x.mes, x.nome, x.descricao, x.periodo;
+
+
+
+
+-- DICI ANALÍTICO
+SELECT x.codunificadora as vis_unificadora,
+x.mes AS vis_mes,
+x.nome AS vis_nome,
+x.descricao AS vis_descricao,
+x.periodo
+FROM (
+SELECT tab.mes,
+tab.id,
+tab.nome,
+tab.periodo,
+tab.codunificadora,
+CASE
+WHEN sum(tab.tv) > 0 AND sum(tab.internet) > 0 THEN 'TV + Internet'::text
+WHEN sum(tab.tv) > 0 AND sum(tab.internet) = 0 THEN 'TV'::text
+WHEN sum(tab.tv) = 0 AND sum(tab.internet) > 0 THEN 'Internet'::text
+ELSE NULL::text
+END AS descricao
+FROM (
+SELECT to_char(n.d_dataemissao::timestamp with time zone, 'YYYY-MM'::text) AS mes,
+n.id,
+t.nome,
+n.d_dataemissao,
+n.codunificadora,
+n.periodo,
+CASE
+WHEN i.codclassificacaoconv115 = 103 THEN 1
+ELSE 0
+END AS tv,
+CASE
+WHEN i.codclassificacaoconv115 <> 103 THEN 1
+ELSE 0
+END AS internet
+FROM nfviaunica n
+JOIN tablocal t ON t.codigo = n.codcidade
+JOIN itensnf i ON i.idnfconvenio = n.id::double precision
+WHERE n.tiponf = 1
+) tab
+GROUP BY tab.codunificadora, tab.mes, tab.id, tab.nome, tab.periodo
+) x
+WHERE x.descricao IS NOT NULL and x.periodo = '08/2022'
+ORDER BY x.codunificadora, x.mes, x.nome, x.descricao, x.periodo
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+
+-- FUNÇÃO RETIRAR CARACTERES NÃO NUMERICOS
+substring(ct.numerodoformulario, '(([0-9]+.*)*[0-9]+)')
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+
+--VIEW RELATÓRIO ORDENS FECHADAS CONEXÃO
+CREATE VIEW relatoriospersonalizados.vis_ordem_servico_planos_conexao (
+    nomecidade,
+    empresas,
+    codigoassinante,
+    nome,
+    tipo_cliente,
+    codigocontrato,
+    tipocontrato,
+    descricaosituacao,
+    servico,
+    data_atendimento,
+    data_agendameanto,
+    periodo,
+    data_execucao,
+    bairro,
+    equipe,
+    tecnologia,
+    tipo,
+    numos,
+    data_realbaixa,
+    motivo_cancelamento,
+    usuario_abriu,
+    grupo_usuario,
+    vendedor,
+    id_pacote,
+    pacote,
+    endereco,
+    numeroconexao,
+    aptoconexao,
+    blococonexao,
+    bairroconexao,
+    cepconexao,
+    estadoconexao,
+    horaatendimento,
+    horaexecucao,
+    horafinal,
+    ocorrencias,
+    equipeexecutou,
+    carteira,
+    data_ativacao,
+    empresa,
+    valor_pacote,
+    cpf_cnpj,
+    idcontrato,
+    valor_pacote_desconto,
+    canal_venda,
+    equipe_venda)
+AS
+SELECT DISTINCT cid.nomedacidade AS nomecidade,
+    emp.razaosocial AS empresas,
+    ord.codigoassinante,
+    cli.nome,
+        CASE
+            WHEN length(translate(cli.cpf_cnpj::text, '/.- '::text, ''::text)) = 11 THEN 'Pessoa Física'::text
+            ELSE 'Pessoa Jurídica'::text
+        END AS tipo_cliente,
+    ord.codigocontrato,
+    tc.descricao AS tipocontrato,
+    v.descricaosituacao,
+    l.descricaodoserv_lanc AS servico,
+    ord.d_dataatendimento AS data_atendimento,
+    ord.d_dataagendamento AS data_agendameanto,
+    ord.periodo,
+    ord.d_dataexecucao AS data_execucao,
+    ct.bairroconexao AS bairro,
+    e.nomedaequipe AS equipe,
+    array_to_string(ARRAY(
+    SELECT DISTINCT t.descricaotecnologia
+    FROM cont_prog cp_1
+             JOIN programacao p ON p.codcidade = cp_1.cidade AND p.codigodaprogramacao = cp_1.protabelaprecos
+             JOIN tipotecnologiapacote t ON t.codtipotecnologia = p.codtipotecnologia
+    WHERE cp_1.cidade = ct.cidade AND cp_1.codempresa = ct.codempresa AND cp_1.contrato = ct.contrato
+    ), ','::text) AS tecnologia,
+        CASE
+            WHEN ord.situacao = 1 THEN 'Pendente'::text
+            WHEN ord.situacao = 2 AND (ord.codserv = 0 OR ord.codserv IS NULL) THEN 'Atendimento'::text
+            WHEN ord.situacao = 2 AND ord.codserv = 1 THEN 'Finalizada'::text
+            WHEN ord.situacao = 3 AND ord.d_dataexecucao IS NULL THEN 'Sem Execução'::text
+            ELSE 'Executada'::text
+        END AS tipo,
+    ord.numos,
+    ord.d_databaixa AS data_realbaixa,
+    m.descmotivo AS motivo_cancelamento,
+    ord.atendente AS usuario_abriu,
+    hg.namegroup AS grupo_usuario,
+    ve.nome AS vendedor,
+    array_to_string(ARRAY(
+    SELECT p.codigodaprogramacao AS id_pacote
+    FROM cont_prog cp_1
+             JOIN programacao p ON p.codcidade = cp_1.cidade AND p.codigodaprogramacao = cp_1.protabelaprecos
+    WHERE cp_1.cidade = ct.cidade AND cp_1.codempresa = ct.codempresa AND cp_1.contrato = ct.contrato
+    ), ', '::text) AS id_pacote,
+    array_to_string(ARRAY(
+    SELECT p.nomedaprogramacao
+    FROM cont_prog cp_1
+             JOIN programacao p ON p.codcidade = cp_1.cidade AND p.codigodaprogramacao = cp_1.protabelaprecos
+    WHERE cp_1.cidade = ct.cidade AND cp_1.codempresa = ct.codempresa AND cp_1.contrato = ct.contrato
+    ), ','::text) AS pacote,
+    (en.tipodologradouro::text || ' '::text) || en.nomelogradouro::text AS endereco,
+    ct.numeroconexao,
+    ct.aptoconexao,
+    ct.blococonexao,
+    ct.bairroconexao,
+    ct.cepconexao,
+    tl.estado AS estadoconexao,
+    ord.t_horaatendimento AS horaatendimento,
+    ord.t_horainicial AS horaexecucao,
+    ord.t_horafinal AS horafinal,
+    array_to_string(ARRAY(
+    SELECT op.descricaoproblema
+    FROM osproblemas op
+    WHERE op.cidade = ord.cidade AND op.codempresa = ord.codempresa AND op.numos = ord.numos
+    ), ', '::text) AS ocorrencias,
+    ex.nomedaequipe AS equipeexecutou,
+    cc.descricao AS carteira,
+    ct.d_datadainstalacao AS data_ativacao,
+        CASE
+            WHEN to_ascii(u.descricao::text) ~~* '%mega%'::text THEN 'MEGA'::character varying
+            ELSE u.descricao
+        END AS empresa,
+    array_to_string(ARRAY(
+    SELECT sum(cp_1.valorpacote) AS valor_pacote
+    FROM cont_prog cp_1
+             JOIN programacao p ON p.codcidade = cp_1.cidade AND p.codigodaprogramacao = cp_1.protabelaprecos
+    WHERE cp_1.cidade = ct.cidade AND cp_1.codempresa = ct.codempresa AND cp_1.contrato = ct.contrato
+    ), ','::text) AS valor_pacote,
+    cli.cpf_cnpj,
+    ct.id AS idcontrato,
+    array_to_string(ARRAY(
+    SELECT sum(tt.valor_desconto) AS valor_desconto
+    FROM (
+        SELECT func_calculavaloraditivos_v2(ct.cidade, ct.codempresa, ct.contrato, p.tipoponto::integer, p.tipoprogramacao::integer,
+            cp_2.valorpacote, to_char(ord.d_dataexecucao::timestamp with time zone, 'YYYY-MM-01'::text)::date, (to_char(ord.d_dataexecucao::timestamp with time zone, 'YYYY-MM-01'::text)::date + '1 mon'::interval)::date - 1, p.codigodaprogramacao) AS valor_desconto
+        FROM cont_prog cp_2
+                     JOIN programacao p ON p.codcidade = cp_2.cidade AND p.codigodaprogramacao = cp_2.protabelaprecos
+        WHERE cp_2.cidade = ct.cidade AND cp_2.codempresa = ct.codempresa AND cp_2.contrato = ct.contrato
+        ) tt
+    ), ''::text) AS valor_pacote_desconto,
+    tv.descricao AS canal_venda,
+    eq.descricao AS equipe_venda
+FROM ordemservico ord
+     JOIN lanceservicos l ON l.codigodoserv_lanc = ord.codservsolicitado
+     JOIN cidade cid ON cid.codigodacidade = ord.cidade
+     JOIN clientes cli ON cli.cidade = ord.cidade AND cli.codigocliente = ord.codigoassinante
+     JOIN tablocal tl ON tl.codigo = cli.cidade
+     JOIN contratos ct ON ct.cidade = ord.cidade AND ct.codempresa = ord.codempresa AND ct.contrato = ord.codigocontrato
+     JOIN tiposcontrato tc ON tc.codigo = ct.tipodocontrato
+     JOIN empresas emp ON emp.codcidade = ct.cidade AND emp.codempresa = ct.codempresa
+     LEFT JOIN unificadora u ON u.codigo = emp.codunificadora
+     JOIN vis_situacaocontrato_descricao v ON v.situacao = ct.situacao
+     LEFT JOIN equipe e ON e.codigocidade = ord.cidade AND e.codigodaequipe = ord.equipe
+     LEFT JOIN equipe ex ON ex.codigocidade = ord.cidade AND ex.codigodaequipe = ord.equipeexecutou
+     LEFT JOIN motivocancelamento m ON m.codmotivo = ord.motivocancelamento
+     LEFT JOIN vendedores ve ON ve.cidadeondetrabalha = ct.cidade AND ve.equipevenda = ct.equipedevenda AND ve.codigo = ct.vendedor
+     LEFT JOIN cont_prog cp ON cp.cidade = ct.cidade AND cp.codempresa = ct.codempresa AND cp.contrato = ct.contrato
+     LEFT JOIN programacao pr ON pr.codcidade = cp.cidade AND pr.codigodaprogramacao = cp.protabelaprecos
+     LEFT JOIN tipotecnologiapacote tp ON tp.codtipotecnologia = pr.codtipotecnologia
+     JOIN enderecos en ON en.codigodacidade = ct.cidade AND en.codigodologradouro = ct.enderecoconexao
+     LEFT JOIN carteira cc ON cc.codigo = ct.codcarteira
+     LEFT JOIN hwusers hu ON lower(hu.login::text) = lower(ord.atendente::text)
+     LEFT JOIN hwgroups hg ON hg.id = hu.groupid
+     LEFT JOIN tiposdevenda tv ON tv.codigo = ct.tipodevenda
+     LEFT JOIN equipesdevenda eq ON eq.cidade = ct.cidade AND eq.codigo = ct.equipedevenda;
+
+ALTER VIEW relatoriospersonalizados.vis_ordem_servico_planos_conexao
+  OWNER TO postgres;
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+
+--RELATÓRIO ADMINISTRATIVO - INADIMPLENTES CONEXÃO - 30855
+CREATE VIEW relatoriospersonalizados.vis_boletos_em_aberto_geral (
+    cidade,
+    codigocliente,
+    nome,
+    vip,
+    contrato,
+    carteira,
+    data_nascimento,
+    tipo,
+    numerodocumento,
+    dataemissao,
+    datavencimento,
+    valordocumento,
+    datapagamento,
+    valorpago,
+    valordesconto,
+    saldo,
+    linhadigitavel,
+    tipopagamento,
+	tipodocumento,
+    tipolancamento,
+    localcobranca,
+    tipocontrato,
+    cpf_cnpj,
+    classificao,
+    telefone,
+    vencimentocontrato,
+    situacaocontrato,
+    periodofatura,
+    telefone1,
+    telefone2,
+    telefone3,
+    emailcliente,
+    idcontrato,
+    classificacaocomercial,
+    bairro,
+    uf_conexao,
+    tipo_logradouro,
+    logradouro,
+    numero_conexao,
+    cep_conexao,
+    faturaimpressa,
+    enviarporemail)
+AS
+SELECT DISTINCT cid.nomedacidade AS cidade,
+    cli.codigocliente,
+    cli.nome,
+        CASE
+            WHEN cli.vip = 1 THEN 'SIM'::text
+            ELSE 'NÃO'::text
+        END AS vip,
+    ct.contrato,
+    ca.descricao AS carteira,
+    cli.d_datanascimento AS data_nascimento,
+        CASE
+            WHEN dr.reparcelamento = 1 THEN 'Reparcelado'::text
+            WHEN dr.boletoequipamento = 1 THEN 'Equipamento'::text
+            WHEN dr.situacao = 1 THEN 'Cancelado'::text
+            ELSE 'Normal'::text
+        END AS tipo,
+    dr.numerodocumento,
+    dr.d_dataemissao AS dataemissao,
+    dr.d_datavencimento AS datavencimento,
+    dr.valordocumento,
+    dr.d_datapagamento AS datapagamento,
+    dr.valorpago,
+    dr.valordesconto,
+    dr.valordocumento + dr.valorjuros + dr.valormulta - dr.valordesconto AS saldo,
+    dr.linhadigitavelcalculada AS linhadigitavel,
+        CASE
+            WHEN dr.tipopagamento = ANY (ARRAY[1, 3]) THEN 'Dinheiro'::text
+            WHEN dr.tipopagamento = 2 THEN 'Cheque'::text
+            WHEN dr.tipopagamento = 4 THEN 'Cartão de Débito'::text
+            WHEN dr.tipopagamento = 5 THEN 'Cartão de Crédito'::text
+            ELSE NULL::text
+        END AS tipopagamento,
+    dr.tipodocumento AS tipodocumentook,
+    array_agg(split_part(m.observacao, '[', 1)) AS tipolancamento,
+    l.descricao AS localcobranca,
+    tc.descricao AS tipocontrato,
+    cli.cpf_cnpj,
+        CASE
+            WHEN length(cli.cpf_cnpj::text) = 14 THEN 'PF'::text
+            ELSE 'PJ'::text
+        END AS classificao,
+    func_retornatelefones(cli.cidade, cli.codigocliente) AS telefone,
+    ct.dtvencto AS vencimentocontrato,
+    v.descricaosituacao AS situacaocontrato,
+    to_char(dr.d_datafaturamento::timestamp with time zone, 'YYYY-MM-01'::text)::date AS periodofatura,
+    (
+    SELECT translate(t.ddd || t.telefone::text, '.,-() '::text, ''::text) AS telefone1
+    FROM telefones t
+    WHERE t.cidade = cli.cidade AND t.codigocliente = cli.codigocliente
+    LIMIT 1
+    ) AS telefone1,
+    (
+    SELECT translate(t.ddd || t.telefone::text, '.,-() '::text, ''::text) AS telefone1
+    FROM telefones t
+    WHERE t.cidade = cli.cidade AND t.codigocliente = cli.codigocliente
+    OFFSET 1
+    LIMIT 1
+    ) AS telefone2,
+    (
+    SELECT translate(t.ddd || t.telefone::text, '.,-() '::text, ''::text) AS telefone1
+    FROM telefones t
+    WHERE t.cidade = cli.cidade AND t.codigocliente = cli.codigocliente
+    OFFSET 2
+    LIMIT 1
+    ) AS telefone3,
+    replace(cli.email,',',';') AS emailcliente,
+    ct.id AS idcontrato,
+    cc.descricao AS classificacaocomercial,
+    ct.bairroconexao AS bairro,
+    tl.estado AS uf_conexao,
+    en.tipodologradouro AS tipo_logradouro,
+    en.nomelogradouro AS logradouro,
+    ct.numeroconexao AS numero_conexao,
+    ct.cepconexao AS cep_conexao,
+        CASE
+            WHEN ct.faturaimpressa = 1 THEN 'SIM'::text
+            ELSE 'NÃO'::text
+        END AS faturaimpressa,
+        CASE
+            WHEN ct.enviarporemail = 1 THEN 'SIM'::text
+            ELSE 'NÃO'::text
+        END AS enviarporemail
+FROM docreceber dr
+     JOIN cidade cid ON cid.codigodacidade = dr.codigodacidade
+     JOIN clientes cli ON cli.cidade = dr.codigodacidade AND cli.codigocliente = dr.cliente
+     JOIN regional r ON r.codigo = cid.codigo_regional
+     JOIN localcobranca l ON l.codigo = dr.localcobranca
+     JOIN movimfinanceiro m ON m.numfatura = dr.fatura
+     JOIN contratos ct ON ct.cidade = m.cidade AND ct.codempresa = m.codempresa AND ct.contrato = m.contrato
+     LEFT JOIN tiposcontrato tc ON tc.codigo = ct.tipodocontrato
+     LEFT JOIN vis_situacaocontrato_descricao v ON v.situacao = ct.situacao
+     JOIN enderecos en ON en.codigodologradouro = ct.enderecoconexao
+     JOIN carteira ca ON ca.codigo = ct.codcarteira AND en.codigodacidade = ct.cidade
+     JOIN tablocal tl ON tl.codigo = cid.codigodacidade
+     JOIN classificacaocadastros cc ON cc.codigo = cli.codigoclassificacaocadastro
+WHERE dr.d_datapagamento IS NULL AND dr.situacao = 0
+group by 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42;
+
+ALTER VIEW relatoriospersonalizados.vis_boletos_em_aberto_geral
+  OWNER TO postgres;
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+
+--RELATÓRIO COM ESCOPO RESERVA OU IP FIXO MASTER - 30873
+with
+ins_moc as(
+  SELECT t.idcliente, t.id, t.nomeescopo
+  FROM dblink('hostaddr=187.44.0.8 dbname=ins user=postgres password=i745@postgres port=5432'::text, 
+    'select eq.idcliente, e.id, e.nomeescopo
+    from idhcp.escopos e
+    JOIN idhcp.equipamentos eq ON eq.idescopo = e.id
+    where e.nomeescopo ilike ''%RESERVA%'''::text) 
+    as t (idcliente integer, id bigint, nomeescopo character varying)
+),
+ins_dvl as(
+  SELECT t.idcliente, t.id, t.nomeescopo
+  FROM dblink('hostaddr=189.91.0.26 dbname=ins user=postgres password=i745@postgres port=5432'::text, 
+    'select eq.idcliente, e.id, e.nomeescopo
+    from idhcp.escopos e
+    JOIN idhcp.equipamentos eq ON eq.idescopo = e.id
+    where e.nomeescopo ilike ''%RESERVA%'''::text) 
+    as t (idcliente integer, id bigint, nomeescopo character varying)
+)
+SELECT DISTINCT
+cl.nome AS "Nome_Assinante",
+cid.nomedacidade AS "Cidade",
+cl.codigocliente AS "Codigo_Assinante",
+ct.contrato AS "Contrato",
+case when a.idcliente is not null then a.nomeescopo else b.nomeescopo end as escopo
+FROM clientes cl
+JOIN cidade cid ON cid.codigodacidade = cl.cidade
+JOIN contratos ct ON ct.cidade = cl.cidade AND ct.codigodocliente = cl.codigocliente
+--JOIN c ON c.nomedacidade = cid.nomedacidade AND c.codigocliente = cl.codigocliente AND c.contrato = ct.contrato
+left JOIN ins_moc a ON a.idcliente = ct.id
+left JOIN ins_dvl b ON b.idcliente = ct.id
+where (a.idcliente is not null or b.idcliente is not null)
+ORDER BY cl.nome
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+
+--VIEW ESCOPO RESERVA OU IP FIXO MASTER - 30873
+CREATE VIEW relatoriospersonalizados.vis_clientes_escopo_reserva (
+Nome_Assinante,
+Cidade,
+Codigo_Assinante,
+Contrato,
+escopo)
+AS
+with
+ins_moc as(
+  SELECT t.idcliente, t.id, t.nomeescopo
+  FROM dblink('hostaddr=187.44.0.8 dbname=ins user=postgres password=i745@postgres port=5432'::text, 
+    'select eq.idcliente, e.id, e.nomeescopo
+    from idhcp.escopos e
+    JOIN idhcp.equipamentos eq ON eq.idescopo = e.id
+    where e.nomeescopo ilike ''%RESERVA%'''::text) 
+    as t (idcliente integer, id bigint, nomeescopo character varying)
+),
+ins_dvl as(
+  SELECT t.idcliente, t.id, t.nomeescopo
+  FROM dblink('hostaddr=189.91.0.26 dbname=ins user=postgres password=i745@postgres port=5432'::text, 
+    'select eq.idcliente, e.id, e.nomeescopo
+    from idhcp.escopos e
+    JOIN idhcp.equipamentos eq ON eq.idescopo = e.id
+    where e.nomeescopo ilike ''%RESERVA%'''::text) 
+    as t (idcliente integer, id bigint, nomeescopo character varying)
+)
+SELECT DISTINCT
+cl.nome AS "Nome_Assinante",
+cid.nomedacidade AS "Cidade",
+cl.codigocliente AS "Codigo_Assinante",
+ct.contrato AS "Contrato",
+case when a.idcliente is not null then a.nomeescopo else b.nomeescopo end as escopo
+FROM clientes cl
+JOIN cidade cid ON cid.codigodacidade = cl.cidade
+JOIN contratos ct ON ct.cidade = cl.cidade AND ct.codigodocliente = cl.codigocliente
+left JOIN ins_moc a ON a.idcliente = ct.id
+left JOIN ins_dvl b ON b.idcliente = ct.id
+where (a.idcliente is not null or b.idcliente is not null)
+ORDER BY cl.nome;
+
+ALTER VIEW relatoriospersonalizados.vis_clientes_escopo_reserva
+  OWNER TO postgres;
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+
+--RELATÓRIO MULTA E DIVIDA CONEXÃO
+with x as (
+select ct.id, count(distinct dr.id) as qtd
+from docreceber dr
+join public.fatura f on f.numerofatura = dr.fatura
+join public.contratos ct on ct.cidade = f.codigodacidade and ct.contrato = f.numerodocontrato
+where dr.d_datapagamento is null and dr.situacao = 0  
+group by ct.id
+)
+select DISTINCT 
+ca.descricao, 
+c.nomedacidade, 
+cl.codigocliente, 
+cl.cpf_cnpj, 
+ct.id, 
+cl.nome, 
+v.descricaosituacao,  
+array_to_string(ARRAY(SELECT DISTINCT mf.observacao
+                      FROM movimfinanceiro mf
+                      WHERE mf.numfatura = dr.fatura
+                      ORDER BY mf.observacao), '- '::text) AS observacao,
+dr.valordocumento,
+dr.d_datavencimento
+FROM docreceber dr
+      JOIN fatura f ON f.numerofatura = dr.fatura
+      JOIN contratos ct ON ct.cidade = f.codigodacidade AND ct.contrato =  f.numerodocontrato
+      JOIN clientes cl ON cl.cidade = dr.codigodacidade AND cl.codigocliente =  dr.cliente
+      JOIN cidade c ON c.codigodacidade = cl.cidade
+      JOIN movimfinanceiro m ON m.numfatura = dr.fatura
+      join carteira ca on ca.codigo=ct.codcarteira 
+      join vis_situacaocontrato_descricao v on v.situacao=ct.situacao
+	  join x on x.id = ct.id
+where m.lanc_servico in (1781,1151)
+order by ca.descricao, c.nomedacidade, cl.codigocliente, ct.id, cl.nome
 
 --------------------------------------------------------------------------------------------------------------------------------------------
 
